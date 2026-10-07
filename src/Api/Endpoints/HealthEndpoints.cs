@@ -8,14 +8,15 @@ public sealed record DbHealthStatus(string Status, string Database);
 
 public static class HealthEndpoints
 {
+    private static readonly byte[] OkJson = """{"status":"ok"}"""u8.ToArray();
+
     public static RouteGroupBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/health")
-            .WithTags("Health");
+        var group = app.MapGroup("/api/health").WithTags("Health");
 
-        group.MapGet("/", () => Results.Ok(new HealthStatus("ok", DateTimeOffset.UtcNow)))
+        group.MapGet("/", () => Results.Bytes(OkJson, "application/json"))
             .WithName("HealthCheck")
-            .WithSummary("Liveness probe");
+            .WithSummary("Liveness probe (static bytes, zero-alloc)");
 
         group.MapGet("/db", async (CancellationToken ct) =>
         {
@@ -31,8 +32,7 @@ public static class HealthEndpoints
                 return Results.Problem(detail: ex.Message, statusCode: 503);
             }
         })
-        .WithName("DbHealthCheck")
-        .WithSummary("Database connectivity check");
+        .WithName("DbHealthCheck");
 
         return group;
     }
