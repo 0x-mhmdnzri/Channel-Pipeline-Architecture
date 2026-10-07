@@ -1,47 +1,67 @@
 # Channel Pipeline Architecture
 
-A lightweight, high-throughput data processing architecture for .NET using `System.Threading.Channels`.
+Lightweight high-throughput data processing + **AOT-ready Minimal API** with PostgreSQL.
 
-Designed for scenarios with **100M+ records** or continuous streaming, running in a **single process with multiple workers**.
+## Projects
 
-No Clean Architecture, no Onion, no DDD, no CQRS ceremony.
+| Project | Description |
+|---------|-------------|
+| `src/Host` | Original Channel Pipeline demo |
+| `src/Pipelines` | Channel-based pipeline stages |
+| `src/Api` | **PostgreSQL API** – Native AOT oriented, categorized endpoints, Swagger |
 
-## Core Idea
+## API (`src/Api`)
 
-```
-Ingestion → Channel → Transform Stage (N workers) → Channel → Enrich Stage → Channel → Persist Stage
-```
+### Features
+- **Native AOT ready** (`PublishAot=true`)
+- Clean **categorized endpoints** via `MapGroup`
+- Nested relationships: Organization → Company → Department → Employee → Address / Project → Task
+- Mock data seeder (thousands of rows)
+- Swagger UI at `/swagger`
 
-Each stage is a simple class that reads from an input channel and writes to an output channel.
+### Endpoints
 
-## Project Structure
+| Group | Path | Description |
+|-------|------|-------------|
+| Health | `GET /api/health` | Liveness |
+| Health | `GET /api/health/db` | DB connectivity |
+| Seed | `POST /api/seed` | Seed ~3.6k employees + nested data |
+| Seed | `POST /api/seed/large` | Larger seed |
+| Organizations | `GET /api/organizations` | List |
+| Organizations | `GET /api/organizations/{id}` | Detail + companies |
+| Companies | `GET /api/companies` | List (optional `?organizationId=`) |
+| Companies | `GET /api/companies/{id}` | Detail + departments |
+| Departments | `GET /api/departments/{id}` | Detail + employees + projects |
+| Employees | `GET /api/employees` | List (paging + filter) |
+| Employees | `GET /api/employees/{id}` | Detail + addresses |
 
-```
-src/
-├── Host/                     # Program.cs + DI + Hosting
-├── Pipelines/                # All processing logic lives here
-│   ├── Ingestion/
-│   ├── Stages/
-│   ├── PipelineBuilder.cs
-│   └── Pipeline.cs
-├── Models/                  # Simple records / DTOs only
-├── Infrastructure/          # Real I/O (Kafka, files, DB...)
-└── Observability/           # Metrics, logging, health
-```
-
-## Quick Start
+### Run
 
 ```bash
-dotnet run --project src/Host
+# Ensure PostgreSQL is running and connection string is set
+dotnet run --project src/Api
+
+# Seed
+curl -X POST http://localhost:5080/api/seed
+
+# Swagger
+open http://localhost:5080/swagger
 ```
 
-## Key Design Decisions
+### Stress test (oha)
 
-- **Bounded Channels** for natural backpressure
-- **Configurable degree of parallelism** per stage
-- **Zero unnecessary abstractions**
-- **ArrayPool + Span** friendly (hot path ready)
-- Easy to test each stage in isolation
+```bash
+oha -c 500 -z 60s --no-tui "http://localhost:5080/api/employees?take=20"
+```
+
+### AOT Publish
+
+```bash
+dotnet publish src/Api -c Release -r linux-x64
+```
+
+> Note: Full Native AOT + Swashbuckle has limitations. For pure AOT production builds,
+> exclude Swagger or switch to Microsoft.AspNetCore.OpenApi + Scalar only.
 
 ## License
 
