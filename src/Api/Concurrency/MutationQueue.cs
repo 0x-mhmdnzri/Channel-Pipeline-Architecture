@@ -4,8 +4,7 @@ namespace Api.Concurrency;
 
 /// <summary>
 /// Redis-style single-threaded mutation event loop.
-/// All writes are serialized on one dedicated thread — zero lock contention,
-/// predictable latency, minimal syscalls / context switches.
+/// Thread is pinned to a dedicated CPU core (affinity).
 /// </summary>
 public sealed class MutationQueue : IAsyncDisposable
 {
@@ -13,9 +12,12 @@ public sealed class MutationQueue : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _loop;
     private long _sequence;
+    private readonly int _pinnedCore;
 
-    public MutationQueue(int capacity = 10_000)
+    public MutationQueue(int capacity = 10_000, int? pinCore = null)
     {
+        _pinnedCore = pinCore ?? CpuAffinity.PreferredMutationCore;
+
         _channel = Channel.CreateBounded<IMutationWork>(new BoundedChannelOptions(capacity)
         {
             FullMode = BoundedChannelFullMode.Wait,
@@ -32,6 +34,7 @@ public sealed class MutationQueue : IAsyncDisposable
     }
 
     public long CurrentFence => Interlocked.Read(ref _sequence);
+    public int PinnedCore => _pinnedCore;
 
     public async Task<T> EnqueueAsync<T>(
         Func<long, CancellationToken, ValueTask<T>> work,
@@ -55,20 +58,20 @@ public sealed class MutationQueue : IAsyncDisposable
 
     private async Task RunLoop()
     {
+        var pinned = CpuAffinity.TryPinCurrentThread(_pinnedCore);
+        CpuAffinity.LogPinResult(pinned, _pinnedCore, "MutationQueue");
+
+        try { Thread.CurrentThread.Priority = ThreadPriority.AboveNormal; }
+        catch { }
+
         var reader = _channel.Reader;
         var token = _cts.Token;
 
         await foreach (var work in reader.ReadAllAsync(token).ConfigureAwait(false))
         {
             var fence = Interlocked.Increment(ref _sequence);
-            try
-            {
-                await work.ExecuteAsync(fence, token).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                work.Fail(ex);
-            }
+            try { await work.ExecuteAsync(fence, token).ConfigureAwait(false); }
+            catch (Exception ex) { work.Fail(ex); }
         }
     }
 
