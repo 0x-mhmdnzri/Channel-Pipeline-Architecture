@@ -12,7 +12,7 @@ namespace Api.Endpoints;
 /// </summary>
 public static class BenchEndpoints
 {
-    private static readonly byte[] PingJson = "{""ok"":true,""svc"":""bench""}"u8.ToArray();
+    private static readonly byte[] PingJson = """{"ok":true,"svc":"bench"}"""u8.ToArray();
 
     public static RouteGroupBuilder MapBenchEndpoints(this IEndpointRouteBuilder app)
     {
