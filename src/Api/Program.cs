@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Api.Concurrency;
 using Api.Data;
 using Api.Endpoints;
 using Api.Models;
@@ -15,17 +16,23 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
+// --- Redis-style single-threaded mutation loop ---
+builder.Services.AddSingleton<MutationQueue>();
+builder.Services.AddSingleton<IdempotencyStore>();
+builder.Services.AddSingleton<WriteGate>();
+
 builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-app.MapOpenApi(); // /openapi/v1.json
+app.MapOpenApi();
 app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
 await Schema.EnsureCreatedAsync();
 
 app.MapHealthEndpoints();
 app.MapSeedEndpoints();
+app.MapMutationEndpoints();
 app.MapOrganizationsEndpoints();
 app.MapCompaniesEndpoints();
 app.MapDepartmentsEndpoints();
@@ -62,4 +69,6 @@ app.Run("http://0.0.0.0:5080");
 [JsonSerializable(typeof(SeedResult))]
 [JsonSerializable(typeof(Api.Endpoints.HealthStatus))]
 [JsonSerializable(typeof(Api.Endpoints.DbHealthStatus))]
+[JsonSerializable(typeof(UpdateTitleRequest))]
+[JsonSerializable(typeof(UpdateTitleResponse))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext;
