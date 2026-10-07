@@ -1,23 +1,39 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Microsoft.Extensions.Configuration;
 
 namespace Api.Data;
 
 /// <summary>
-/// Used by "dotnet ef migrations" / "dotnet ef database update" at design-time.
+/// Design-time factory for "dotnet ef migrations" / "dotnet ef database update".
+/// Reads connection string from appsettings.json (same as runtime).
 /// </summary>
 public sealed class AppDbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
 {
     public AppDbContext CreateDbContext(string[] args)
     {
-        var cs = Environment.GetEnvironmentVariable("ConnectionStrings__Default")
-            ?? Environment.GetEnvironmentVariable("CONNECTION_STRING")
+        var basePath = Directory.GetCurrentDirectory();
+        if (!File.Exists(Path.Combine(basePath, "appsettings.json")))
+        {
+            var apiPath = Path.Combine(basePath, "src", "Api");
+            if (File.Exists(Path.Combine(apiPath, "appsettings.json")))
+                basePath = apiPath;
+        }
+
+        var config = new ConfigurationBuilder()
+            .SetBasePath(basePath)
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile("appsettings.Development.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
+
+        var cs = config.GetConnectionString("Default")
+            ?? Environment.GetEnvironmentVariable("ConnectionStrings__Default")
             ?? "Host=localhost;Port=5432;Database=channeldb;Username=channelapp;Password=channelapp";
 
-        var options = new DbContextOptionsBuilder<AppDbContext>()
-            .UseNpgsql(cs)
-            .Options;
+        var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
+        optionsBuilder.UseNpgsql(cs);
 
-        return new AppDbContext(options);
+        return new AppDbContext(optionsBuilder.Options);
     }
 }
