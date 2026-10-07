@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using System.Text.Json.Serialization;
 using Api.Concurrency;
 using Api.Data;
@@ -7,8 +8,12 @@ using Api.Models;
 var builder = WebApplication.CreateBuilder(args);
 
 var connStr = builder.Configuration.GetConnectionString("Default")
-    ?? "Host=localhost;Port=5432;Database=channeldb;Username=channelapp;Password=channelapp";
+    ?? throw new InvalidOperationException(
+        "Connection string 'Default' is missing. Set ConnectionStrings:Default in appsettings.json.");
 Db.Configure(connStr);
+
+builder.Services.AddDbContext<AppDbContext>(opt =>
+    opt.UseNpgsql(connStr));
 
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -16,7 +21,6 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
-// --- Redis-style single-threaded mutation loop ---
 builder.Services.AddSingleton<MutationQueue>();
 builder.Services.AddSingleton<IdempotencyStore>();
 builder.Services.AddSingleton<WriteGate>();
@@ -28,7 +32,11 @@ var app = builder.Build();
 app.MapOpenApi();
 app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
-await Schema.EnsureCreatedAsync();
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await db.Database.MigrateAsync();
+}
 
 app.MapHealthEndpoints();
 app.MapSeedEndpoints();
@@ -40,17 +48,17 @@ app.MapEmployeesEndpoints();
 
 app.Run("http://0.0.0.0:5080");
 
-[JsonSerializable(typeof(Organization))]
-[JsonSerializable(typeof(List<Organization>))]
-[JsonSerializable(typeof(Company))]
-[JsonSerializable(typeof(List<Company>))]
-[JsonSerializable(typeof(Department))]
-[JsonSerializable(typeof(Employee))]
-[JsonSerializable(typeof(List<Employee>))]
-[JsonSerializable(typeof(Address))]
-[JsonSerializable(typeof(List<Address>))]
-[JsonSerializable(typeof(Project))]
-[JsonSerializable(typeof(TaskItem))]
+[JsonSerializable(typeof(Api.Models.Organization))]
+[JsonSerializable(typeof(List<Api.Models.Organization>))]
+[JsonSerializable(typeof(Api.Models.Company))]
+[JsonSerializable(typeof(List<Api.Models.Company>))]
+[JsonSerializable(typeof(Api.Models.Department))]
+[JsonSerializable(typeof(Api.Models.Employee))]
+[JsonSerializable(typeof(List<Api.Models.Employee>))]
+[JsonSerializable(typeof(Api.Models.Address))]
+[JsonSerializable(typeof(List<Api.Models.Address>))]
+[JsonSerializable(typeof(Api.Models.Project))]
+[JsonSerializable(typeof(Api.Models.TaskItem))]
 [JsonSerializable(typeof(OrganizationDetail))]
 [JsonSerializable(typeof(CompanySummary))]
 [JsonSerializable(typeof(List<CompanySummary>))]
