@@ -1,0 +1,10 @@
+{
+  "configProperties": {
+    "System.GC.Server": true,
+    "System.GC.Concurrent": true,
+    "System.GC.DynamicAdaptationMode": 1,
+    "System.GC.RetainVM": true,
+    "System.Runtime.TieredCompilation": true,
+    "System.Runtime.TieredPGO": true
+  }
+}

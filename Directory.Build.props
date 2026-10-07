@@ -1,0 +1,24 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+
+    <!-- ========== GC Optimization for HIGH THROUGHPUT ==========
+         Scenario: sustained high concurrency (500+ concurrent), single process.
+         Per dotnet-high-load-optimization skill:
+         - Server GC = multiple heaps, better throughput under concurrent allocation
+         - Concurrent GC = background collections, less STW
+         - DATAS is ON by default in .NET 10; explicit for documentation.
+         - RetainVM = avoid heap shrink/grow churn under sustained load
+    -->
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
+    <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
+
+    <!-- Central Package Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>

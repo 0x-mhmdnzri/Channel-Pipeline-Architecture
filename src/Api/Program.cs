@@ -15,17 +15,12 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
 });
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-app.UseSwagger();
-app.UseSwaggerUI(c =>
-{
-    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Channel Pipeline API v1");
-    c.RoutePrefix = "swagger";
-});
+app.MapOpenApi(); // /openapi/v1.json
+app.MapGet("/", () => Results.Redirect("/openapi/v1.json"));
 
 await Schema.EnsureCreatedAsync();
 

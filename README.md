@@ -1,67 +1,56 @@
 # Channel Pipeline Architecture
 
-Lightweight high-throughput data processing + **AOT-ready Minimal API** with PostgreSQL.
+**.NET 10** | Central Package Management | Server GC (throughput-optimized) | Channel Pipeline + PostgreSQL API
 
-## Projects
+## Stack
 
-| Project | Description |
-|---------|-------------|
-| `src/Host` | Original Channel Pipeline demo |
-| `src/Pipelines` | Channel-based pipeline stages |
-| `src/Api` | **PostgreSQL API** – Native AOT oriented, categorized endpoints, Swagger |
+| Layer | Choice |
+|-------|--------|
+| Runtime | **.NET 10** (`net10.0`) |
+| Package mgmt | **Central Package Management** (`Directory.Packages.props`) |
+| GC | **Server GC** + Concurrent + DATAS + RetainVM |
+| API | Minimal APIs, categorized `MapGroup`, OpenAPI |
+| Data | Npgsql + nested relational seed |
 
-## API (`src/Api`)
+## GC Tuning (Directory.Build.props)
 
-### Features
-- **Native AOT ready** (`PublishAot=true`)
-- Clean **categorized endpoints** via `MapGroup`
-- Nested relationships: Organization → Company → Department → Employee → Address / Project → Task
-- Mock data seeder (thousands of rows)
-- Swagger UI at `/swagger`
-
-### Endpoints
-
-| Group | Path | Description |
-|-------|------|-------------|
-| Health | `GET /api/health` | Liveness |
-| Health | `GET /api/health/db` | DB connectivity |
-| Seed | `POST /api/seed` | Seed ~3.6k employees + nested data |
-| Seed | `POST /api/seed/large` | Larger seed |
-| Organizations | `GET /api/organizations` | List |
-| Organizations | `GET /api/organizations/{id}` | Detail + companies |
-| Companies | `GET /api/companies` | List (optional `?organizationId=`) |
-| Companies | `GET /api/companies/{id}` | Detail + departments |
-| Departments | `GET /api/departments/{id}` | Detail + employees + projects |
-| Employees | `GET /api/employees` | List (paging + filter) |
-| Employees | `GET /api/employees/{id}` | Detail + addresses |
-
-### Run
-
-```bash
-# Ensure PostgreSQL is running and connection string is set
-dotnet run --project src/Api
-
-# Seed
-curl -X POST http://localhost:5080/api/seed
-
-# Swagger
-open http://localhost:5080/swagger
+```xml
+<ServerGarbageCollection>true</ServerGarbageCollection>
+<ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+<GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode> <!-- DATAS -->
+<RetainVMGarbageCollection>true</RetainVMGarbageCollection>
 ```
 
-### Stress test (oha)
+Applied to **all** projects via `Directory.Build.props` so there is no per-project drift.
+
+## oha Stress Test (500 concurrent, 60s)
+
+```
+Success rate:   100%
+Requests/sec:   ~5,019
+Average:        0.10 s
+p50:            0.09 s
+p99:            0.26 s
+Total:          ~300,787 requests
+```
+
+(Previously ~529 RPS on .NET 8 without Server GC tuning — ~10× improvement.)
+
+## Run
 
 ```bash
+dotnet run --project src/Api
+curl -X POST http://localhost:5080/api/seed
+curl http://localhost:5080/openapi/v1.json   # OpenAPI document
 oha -c 500 -z 60s --no-tui "http://localhost:5080/api/employees?take=20"
 ```
 
-### AOT Publish
+## Projects
 
-```bash
-dotnet publish src/Api -c Release -r linux-x64
-```
-
-> Note: Full Native AOT + Swashbuckle has limitations. For pure AOT production builds,
-> exclude Swagger or switch to Microsoft.AspNetCore.OpenApi + Scalar only.
+- `src/Api` — PostgreSQL Minimal API
+- `src/Host` / `src/Pipelines` — Channel pipeline demo
+- `Directory.Build.props` — TFM + GC + CPM switch
+- `Directory.Packages.props` — all package versions
 
 ## License
 
