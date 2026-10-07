@@ -12,16 +12,26 @@
 | API | Minimal APIs, categorized `MapGroup`, OpenAPI |
 | Data | Npgsql + nested relational seed |
 
+## Connection String
+
+`src/Api/appsettings.json`:
+
+```json
+"ConnectionStrings": {
+  "Default": "Host=localhost;Port=5432;Database=channeldb;Username=channelapp;Password=channelapp"
+}
+```
+
+Override via env: `ConnectionStrings__Default=...`
+
 ## GC Tuning (Directory.Build.props)
 
 ```xml
 <ServerGarbageCollection>true</ServerGarbageCollection>
 <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
-<GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode> <!-- DATAS -->
+<GarbageCollectionAdaptationMode>1</GarbageCollectionAdaptationMode>
 <RetainVMGarbageCollection>true</RetainVMGarbageCollection>
 ```
-
-Applied to **all** projects via `Directory.Build.props` so there is no per-project drift.
 
 ## oha Stress Test (500 concurrent, 60s)
 
@@ -34,23 +44,14 @@ p99:            0.26 s
 Total:          ~300,787 requests
 ```
 
-(Previously ~529 RPS on .NET 8 without Server GC tuning — ~10× improvement.)
-
 ## Run
 
 ```bash
 dotnet run --project src/Api
 curl -X POST http://localhost:5080/api/seed
-curl http://localhost:5080/openapi/v1.json   # OpenAPI document
+curl http://localhost:5080/openapi/v1.json
 oha -c 500 -z 60s --no-tui "http://localhost:5080/api/employees?take=20"
 ```
-
-## Projects
-
-- `src/Api` — PostgreSQL Minimal API
-- `src/Host` / `src/Pipelines` — Channel pipeline demo
-- `Directory.Build.props` — TFM + GC + CPM switch
-- `Directory.Packages.props` — all package versions
 
 ## License
 
